@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 *.pyo
 build/
+build_sim/
 dist/
 *.spec
 *.egg-info/
