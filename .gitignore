@@ -5,6 +5,13 @@ __pycache__/
 build/
 dist/
 *.spec
+*.egg-info/
+venv/
+.venv/
+
+# Environment
+.env
+.env.*
 
 # Node
 dashboard/node_modules/
@@ -20,6 +27,10 @@ dashboard/node_modules/
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+*.bak
 
 # OS
 .DS_Store
