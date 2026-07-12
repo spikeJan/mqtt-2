@@ -1,0 +1,26 @@
+{
+  "name": "car-mqtt-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "echarts": "^5.5",
+    "mqtt": "^5.6",
+    "vant": "^4.9",
+    "vue": "^3.4",
+    "vue-echarts": "^7.0",
+    "vue-router": "^4.3"
+  },
+  "devDependencies": {
+    "@vant/auto-import-resolver": "^1.2",
+    "@vitejs/plugin-vue": "^5.0",
+    "unplugin-vue-components": "^0.27",
+    "vite": "^5.4",
+    "vite-plugin-pwa": "^0.20"
+  }
+}

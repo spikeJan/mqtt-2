@@ -1,0 +1,21 @@
+# 小车网口通信配置
+network:
+  host: 192.168.0.233     # 小车网口IP
+  port: 1234              # 数据端口
+  timeout: 2
+
+# 摄像头RTSP配置
+camera:
+  rtsp_url: "rtsp://192.168.0.233/live/0"
+  mjpeg_port: 8080
+  fps: 8
+
+# MQTT配置
+mqtt:
+  broker: localhost
+  port: 1884
+  topic_prefix: car
+
+# 数据库
+database:
+  path: ../database/car_data.db
