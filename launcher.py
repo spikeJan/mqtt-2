@@ -211,6 +211,90 @@ def start_sensor_bridge():
         time.sleep(0.1)
 
 
+# ── 信息窗口 ──
+def create_info_window():
+    import tkinter as tk
+    from tkinter import ttk
+
+    root = tk.Tk()
+    root.title("PipeCar Dashboard")
+    root.geometry("420x320")
+    root.resizable(False, False)
+
+    # 居中窗口
+    root.update_idletasks()
+    w, h = root.winfo_width(), root.winfo_height()
+    x = (root.winfo_screenwidth() - 420) // 2
+    y = (root.winfo_screenheight() - 320) // 2
+    root.geometry(f"+{x}+{y}")
+
+    # 图标
+    try:
+        root.iconbitmap(default="")
+    except Exception:
+        pass
+
+    main_frame = ttk.Frame(root, padding=20)
+    main_frame.pack(fill="both", expand=True)
+
+    ttk.Label(main_frame, text="管道探测小车 - 数据展板",
+              font=("Microsoft YaHei UI", 14, "bold")).pack(pady=(0, 15))
+
+    info_frame = ttk.LabelFrame(main_frame, text="访问地址", padding=10)
+    info_frame.pack(fill="x", pady=(0, 10))
+
+    ttk.Label(info_frame, text=f"本机访问:",
+              font=("Consolas", 10)).grid(row=0, column=0, sticky="w")
+    ttk.Label(info_frame, text=f"http://localhost:{HTTP_PORT}",
+              font=("Consolas", 10, "bold"), foreground="#2563eb").grid(row=0, column=1, sticky="w", padx=(10, 0))
+
+    try:
+        local_ip = socket.gethostbyname(socket.gethostname())
+        ip_text = f"http://{local_ip}:{HTTP_PORT}"
+    except Exception:
+        ip_text = "无法获取"
+
+    ttk.Label(info_frame, text="手机/平板:",
+              font=("Consolas", 10)).grid(row=1, column=0, sticky="w", pady=(5, 0))
+    ttk.Label(info_frame, text=ip_text,
+              font=("Consolas", 10, "bold"), foreground="#2563eb").grid(row=1, column=1, sticky="w", padx=(10, 0), pady=(5, 0))
+
+    ttk.Label(info_frame, text="查看本机IP: 命令行输入 ipconfig",
+              font=("Microsoft YaHei UI", 8), foreground="#666").grid(
+        row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+    status_frame = ttk.LabelFrame(main_frame, text="服务状态", padding=10)
+    status_frame.pack(fill="x", pady=(0, 10))
+
+    status_label = ttk.Label(status_frame, text="● 运行中",
+                             font=("Microsoft YaHei UI", 10), foreground="#16a34a")
+    status_label.pack(anchor="w")
+
+    ttk.Label(status_frame, text=f"MQTT Broker 端口 {MQTT_PORT} | WebSocket 端口 {WS_PORT}",
+              font=("Microsoft YaHei UI", 8), foreground="#666").pack(anchor="w", pady=(2, 0))
+
+    def open_browser():
+        webbrowser.open(f"http://localhost:{HTTP_PORT}")
+
+    def stop_all():
+        log("用户点击停止, 正在关闭...")
+        stop_mqtt_broker()
+        root.destroy()
+
+    btn_frame = ttk.Frame(main_frame)
+    btn_frame.pack(fill="x", pady=(5, 0))
+
+    ttk.Button(btn_frame, text="打开仪表盘", command=open_browser).pack(side="left", padx=(0, 10))
+    ttk.Button(btn_frame, text="停止服务", command=stop_all).pack(side="right")
+
+    root.protocol("WM_DELETE_WINDOW", stop_all)
+
+    # 启动后自动打开浏览器
+    root.after(500, open_browser)
+
+    root.mainloop()
+
+
 # ── 主函数 ──
 def main():
     log("=" * 50)
@@ -250,18 +334,11 @@ def main():
     except Exception:
         pass
     log("=" * 50)
-    log("按 Ctrl+C 停止所有服务")
+    log("所有服务已启动 - 关闭信息窗口即可停止")
     log("")
 
-    webbrowser.open(f"http://localhost:{HTTP_PORT}")
-
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        log("正在停止...")
-    finally:
-        stop_mqtt_broker()
+    create_info_window()
+    stop_mqtt_broker()
 
 
 if __name__ == "__main__":
