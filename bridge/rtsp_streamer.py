@@ -4,7 +4,8 @@ import threading
 import logging
 import os
 import mimetypes
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+from urllib.parse import unquote, urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,8 @@ def get_frame():
 
 class MJPEGHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == '/camera/mjpeg':
+        request_path = unquote(urlsplit(self.path).path)
+        if request_path == '/camera/mjpeg':
             self.send_response(200)
             self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=frame')
             self.send_header('Cache-Control', 'no-cache')
@@ -55,7 +57,7 @@ class MJPEGHandler(BaseHTTPRequestHandler):
                         _time.sleep(0.05)
             except (BrokenPipeError, ConnectionResetError):
                 pass
-        elif self.path == '/camera/snapshot':
+        elif request_path == '/camera/snapshot':
             frame = get_frame()
             if frame:
                 self.send_response(200)
@@ -68,28 +70,40 @@ class MJPEGHandler(BaseHTTPRequestHandler):
                 self.end_headers()
         else:
             # 提供静态文件
-            self._serve_static()
+            self._serve_static(request_path)
 
-    def _serve_static(self):
+    def _serve_static(self, request_path):
         if not _DIST_DIR:
             self.send_response(404)
             self.end_headers()
             return
 
-        path = self.path.lstrip('/')
+        dist_dir = os.path.realpath(os.path.abspath(_DIST_DIR))
+        path = request_path.lstrip('/\\').replace('\\', os.sep).replace('/', os.sep)
         if path == '':
             path = 'index.html'
 
-        file_path = os.path.join(_DIST_DIR, path)
-        file_path = os.path.normpath(file_path)
-        if not file_path.startswith(os.path.normpath(_DIST_DIR)):
+        file_path = os.path.realpath(os.path.abspath(os.path.join(dist_dir, path)))
+        try:
+            inside_dist = os.path.normcase(os.path.commonpath([dist_dir, file_path])) == os.path.normcase(dist_dir)
+        except ValueError:
+            inside_dist = False
+        if not inside_dist:
             self.send_response(403)
             self.end_headers()
             return
 
         if not os.path.isfile(file_path):
             # SPA fallback: 非文件路径返回 index.html
-            file_path = os.path.join(_DIST_DIR, 'index.html')
+            file_path = os.path.realpath(os.path.join(dist_dir, 'index.html'))
+            try:
+                fallback_inside = os.path.normcase(os.path.commonpath([dist_dir, file_path])) == os.path.normcase(dist_dir)
+            except ValueError:
+                fallback_inside = False
+            if not fallback_inside:
+                self.send_response(403)
+                self.end_headers()
+                return
 
         try:
             with open(file_path, 'rb') as f:
@@ -117,7 +131,8 @@ def start_mjpeg_server(host='0.0.0.0', port=8080, dist_dir=None):
     """启动MJPEG HTTP服务器(后台线程), 可选提供静态文件"""
     if dist_dir:
         set_dist_dir(dist_dir)
-    server = HTTPServer(('', port), MJPEGHandler)
+    server = ThreadingHTTPServer(('', port), MJPEGHandler)
+    server.daemon_threads = True
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     logger.info(f"MJPEG流服务已启动: http://{host}:{port}/camera/mjpeg")
