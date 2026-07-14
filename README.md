@@ -65,6 +65,25 @@
 
 ## 开发
 
+### Python 源码环境
+
+根目录 `requirements.txt` 会一次安装 Python 桥接和分析工具所需依赖。Windows 示例：
+
+```bat
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+运行 Python 单元测试：
+
+```bat
+python -B -m unittest discover -s tests -v
+```
+
+FFmpeg 是视频功能调用的外部程序，Mosquitto 是 MQTT Broker，二者均不由 pip 安装。Python CI 只验证依赖安装、导入、语法和单元测试，不验证 STM32、摄像头、真实 MQTT、Vue 或 Windows exe。
+
 ```bash
 # 源码运行模拟模式
 python launcher_sim.py
