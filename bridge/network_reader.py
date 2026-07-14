@@ -13,11 +13,11 @@ FRAME_HEADER = b'\xAA\x55'
 # 帧类型 -> (数据区长度, 有无帧尾, 总帧长)
 # 0x01: 姿态包 Roll(4)+Pitch(4)+Yaw(4)+status(2)=14, 有帧尾DDEE, 21字节
 # 0x02: 轮子包 Speed(4)+Servo(4)=8, 有帧尾DDEE, 15字节
-# 0x04: 全量传感器帧 Roll(4)+Pitch(4)+Yaw(4)+Speed(2)+Servo1(2)+Servo2(2)+CO(2)+CO2(2)=22, 无帧尾, 27字节
+# 0x04: 全量传感器帧 Roll(4)+Pitch(4)+Yaw(4)+Speed(2)+Servo1(2)+Servo2(2)+CO(2)+CO2(2)=22, 有帧尾0D0A, 29字节
 FRAME_TYPES = {
     0x01: {"data_len": 14, "has_tail": True,  "format": "<fff",   "keys": ["roll", "pitch", "yaw"]},
     0x02: {"data_len": 8,  "has_tail": True,  "format": "<ii",    "keys": ["speed", "servo1"]},
-    0x04: {"data_len": 22, "has_tail": False, "format": "<fffHHHHH", "keys": ["roll", "pitch", "yaw", "speed", "servo1", "servo2", "co", "co2"]},
+    0x04: {"data_len": 22, "has_tail": True, "tail": b'\x0D\x0A', "format": "<fffHHHHH", "keys": ["roll", "pitch", "yaw", "speed", "servo1", "servo2", "co", "co2"]},
 }
 
 FRAME_TAIL = b'\xDD\xEE'
@@ -108,8 +108,9 @@ class NetworkReader:
                 checksum = self._buf[4 + data_len]
                 # 验证帧尾
                 tail_start = 4 + data_len + 1
-                if self._buf[tail_start:tail_start + 2] != FRAME_TAIL:
-                    logger.warning(f"帧尾不匹配: 期望DDEE 实际{self._buf[tail_start:tail_start+2].hex().upper()}, 跳过1字节")
+                expected_tail = info.get("tail", FRAME_TAIL)
+                if self._buf[tail_start:tail_start + 2] != expected_tail:
+                    logger.warning(f"帧尾不匹配: 期望{expected_tail.hex().upper()} 实际{self._buf[tail_start:tail_start+2].hex().upper()}, 跳过1字节")
                     self._buf = self._buf[1:]
                     continue
             else:
