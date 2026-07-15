@@ -28,49 +28,98 @@ MIN_HEADER = 4        # 至少需要4字节才能读取type
 class NetworkReader:
     """通过TCP Socket连接小车网口,读取二进制传感器帧"""
 
+    RECONNECT_INITIAL_DELAY = 1.0
+    RECONNECT_MAX_DELAY = 30.0
+
     def __init__(self, host, port, timeout=2):
         self.host = host
         self.port = port
         self.timeout = timeout
         self.sock = None
         self._buf = b''
+        self._retry_delay = self.RECONNECT_INITIAL_DELAY
+        self._next_retry_at = 0.0
+        self._reconnect_enabled = False
 
-    def connect(self):
+    def _attempt_connect(self):
+        sock = None
         try:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.settimeout(self.timeout)
-            self.sock.connect((self.host, self.port))
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(self.timeout)
+            sock.connect((self.host, self.port))
+            self.sock = sock
+            self._buf = b''
+            self._retry_delay = self.RECONNECT_INITIAL_DELAY
+            self._next_retry_at = 0.0
             logger.info(f"网口 {self.host}:{self.port} 已连接")
             return True
         except (socket.error, OSError) as e:
-            logger.error(f"网口连接失败: {e}")
+            if sock:
+                try: sock.close()
+                except Exception: pass
+            self.sock = None
+            self._buf = b''
+            delay = self._schedule_reconnect()
+            logger.warning(f"网口连接失败: {e}, {delay:.1f}秒后重试")
             return False
 
-    def disconnect(self):
-        if self.sock:
-            try: self.sock.close()
+    def _schedule_reconnect(self):
+        delay = self._retry_delay
+        self._next_retry_at = time.monotonic() + delay
+        self._retry_delay = min(delay * 2, self.RECONNECT_MAX_DELAY)
+        return delay
+
+    def _close_socket(self):
+        sock = self.sock
+        self.sock = None
+        if sock:
+            try: sock.close()
             except Exception: pass
-            self.sock = None
+        self._buf = b''
+
+    def _handle_connection_loss(self):
+        self._close_socket()
+        if self._reconnect_enabled:
+            delay = self._schedule_reconnect()
+            logger.info(f"将在 {delay:.1f} 秒后重连")
+
+    def connect(self):
+        self._reconnect_enabled = True
+        if not self.sock and time.monotonic() >= self._next_retry_at:
+            self._attempt_connect()
+        return True
+
+    def disconnect(self):
+        had_socket = self.sock is not None
+        self._reconnect_enabled = False
+        self._close_socket()
+        self._retry_delay = self.RECONNECT_INITIAL_DELAY
+        self._next_retry_at = 0.0
+        if had_socket:
             logger.info("网口已断开")
 
     def read_frame(self):
         """从缓冲区查找并解析一个完整帧,返回字典或None"""
         if not self.sock:
-            return None
+            if not self._reconnect_enabled or time.monotonic() < self._next_retry_at:
+                return None
+            if not self._attempt_connect():
+                return None
 
         try:
             data = self.sock.recv(4096)
             if not data:
                 logger.warning("网口连接已关闭")
-                self.disconnect()
+                self._handle_connection_loss()
                 return None
             self._buf += data
             logger.info(f"收到 {len(data)} 字节, 缓冲区 {len(self._buf)} 字节")
         except socket.timeout:
             logger.info("TCP等待数据中...")  # 确认socket未断开
             pass
-        except (socket.error, OSError):
-            self.disconnect()
+        except (socket.error, OSError) as e:
+            logger.warning(f"网口读取失败: {e}")
+            self._handle_connection_loss()
             return None
 
         while True:
